@@ -9,15 +9,13 @@ class IngredientDB:
     def _get_connection(self):
         """Создает и возвращает соединение с базой данных"""
         conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row  # Для доступа к колонкам по имени
+        conn.row_factory = sqlite3.Row
         return conn
     
     def _create_tables(self):
-        """Создает таблицы, если они не существуют"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             
-            # Создание таблицы ingredients
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS ingredients (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,7 +29,6 @@ class IngredientDB:
                 )
             ''')
             
-            # Создание таблицы semiFinished
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS semiFinished (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,16 +37,47 @@ class IngredientDB:
                 )
             ''')
             
-            # Создание таблицы связей semiFinished_ingredients
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS semiFinished_ingredients (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     semiFinished_id INTEGER NOT NULL,
                     ingredient_id INTEGER NOT NULL,
-                    quantity REAL NOT NULL DEFAULT 100,  -- количество в граммах
+                    quantity REAL NOT NULL DEFAULT 100,
                     FOREIGN KEY (semiFinished_id) REFERENCES semiFinished (id) ON DELETE CASCADE,
                     FOREIGN KEY (ingredient_id) REFERENCES ingredients (id) ON DELETE CASCADE,
                     UNIQUE(semiFinished_id, ingredient_id)
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS products (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS products_ingredients (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    productId INTEGER NOT NULL,
+                    ingredientId INTEGER NOT NULL,
+                    quantity REAL NOT NULL DEFAULT 100,
+                    FOREIGN KEY (productId) REFERENCES products (id) ON DELETE CASCADE,
+                    FOREIGN KEY (ingredientId) REFERENCES ingredients (id) ON DELETE CASCADE,
+                    UNIQUE(productId, ingredientId)
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS products_semiFinished (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    productId INTEGER NOT NULL,
+                    semiFinishedId INTEGER NOT NULL,
+                    quantity REAL NOT NULL DEFAULT 100,
+                    FOREIGN KEY (productId) REFERENCES products (id) ON DELETE CASCADE,
+                    FOREIGN KEY (semiFinishedId) REFERENCES semiFinished (id) ON DELETE CASCADE,
+                    UNIQUE(productId, semiFinishedId)
                 )
             ''')
             
@@ -336,17 +364,6 @@ class IngredientDB:
     # === МЕТОДЫ ДЛЯ СВЯЗЕЙ ПОЛУФАБРИКАТОВ И ИНГРИДИЕНТОВ ===
     
     def add_ingredient_to_semi_finished(self, semi_finished_id: int, ingredient_id: int, quantity: float = 100) -> bool:
-        """
-        Добавляет ингридиент в полуфабрикат
-        
-        Args:
-            semi_finished_id: ID полуфабриката
-            ingredient_id: ID ингридиента
-            quantity: Количество ингридиента в граммах
-        
-        Returns:
-            True если добавление успешно
-        """
         with self._get_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -387,10 +404,10 @@ class IngredientDB:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT i.id, i.name, i.calories, i.kJoule, i.proteins, i.fats, i.carbs, sfi.quantity
-                FROM semiFinished_ingredients sfi
-                JOIN ingredients i ON sfi.ingredient_id = i.id
-                WHERE sfi.semiFinished_id = ?
+                SELECT i.id, i.name, i.calories, i.kJoule, i.proteins, i.fats, i.carbs, semiFinished_ingredients.quantity
+                FROM semiFinished_ingredients
+                JOIN ingredients i ON semiFinished_ingredients.ingredient_id = i.id
+                WHERE semiFinished_ingredients.semiFinished_id = ?
                 ORDER BY i.name
             ''', (semi_finished_id,))
             
@@ -413,8 +430,7 @@ class IngredientDB:
         
         if total_weight == 0:
             return {'calories': 0, 'kJoule': 0, 'proteins': 0, 'fats': 0, 'carbs': 0}
-        
-        # Рассчитываем суммарные значения для всего полуфабриката
+
         total_calories = 0
         total_kJoule = 0
         total_proteins = 0
@@ -422,7 +438,6 @@ class IngredientDB:
         total_carbs = 0
         
         for ingredient in ingredients:
-            # Приводим к 100г ингридиента и умножаем на фактическое количество
             factor = ingredient['quantity'] / 100.0
             total_calories += ingredient['calories'] * factor
             total_kJoule += ingredient['kJoule'] * factor
@@ -430,7 +445,255 @@ class IngredientDB:
             total_fats += ingredient['fats'] * factor
             total_carbs += ingredient['carbs'] * factor
         
-        # Приводим к 100г полуфабриката
+        factor_to_100g = 100.0 / total_weight
+        
+        return {
+            'calories': round(total_calories * factor_to_100g, 2),
+            'kJoule': round(total_kJoule * factor_to_100g, 2),
+            'proteins': round(total_proteins * factor_to_100g, 2),
+            'fats': round(total_fats * factor_to_100g, 2),
+            'carbs': round(total_carbs * factor_to_100g, 2)
+        }
+    
+    # === МЕТОДЫ ДЛЯ ПРОДУКТОВ ===
+
+    def add_product(self, name: str) -> int:
+        """
+        Добавляет новый продукт
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO products (name)
+                VALUES (?)
+            ''', (name,))
+            
+            product_id = cursor.lastrowid
+            conn.commit()
+            return product_id
+
+    def get_product(self, product_id: int) -> Optional[dict]:
+        """
+        Получает продукт по ID
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, name
+                FROM products 
+                WHERE id = ?
+            ''', (product_id,))
+            
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def product_exists(self, name: str, exclude_id: Optional[int] = None) -> bool:
+        """
+        Проверяет, существует ли продукт с таким названием
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            
+            if exclude_id:
+                cursor.execute('''
+                    SELECT 1 FROM products 
+                    WHERE name = ? AND id != ?
+                ''', (name, exclude_id))
+            else:
+                cursor.execute('''
+                    SELECT 1 FROM products 
+                    WHERE name = ?
+                ''', (name,))
+            
+            return cursor.fetchone() is not None
+
+    def get_all_products(self) -> List[Tuple]:
+        """
+        Получает все продукты из базы данных
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, name
+                FROM products 
+                ORDER BY name
+            ''')
+            
+            return cursor.fetchall()
+
+    def update_product(self, product_id: int, name: str) -> bool:
+        """
+        Обновляет название продукта
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE products 
+                SET name = ?
+                WHERE id = ?
+            ''', (name, product_id))
+            
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def delete_product(self, product_id: int) -> bool:
+        """
+        Удаляет продукт по ID
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM products WHERE id = ?', (product_id,))
+            
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def get_products_count(self) -> int:
+        """
+        Возвращает общее количество продуктов в базе
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) FROM products')
+            return cursor.fetchone()[0]
+
+    # === МЕТОДЫ ДЛЯ СВЯЗЕЙ ПРОДУКТОВ С ИНГРИДИЕНТАМИ И ПОЛУФАБРИКАТАМИ ===
+
+    def add_ingredient_to_product(self, product_id: int, ingredient_id: int, quantity: float = 100) -> bool:
+        """
+        Добавляет ингридиент в продукт
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute('''
+                    INSERT INTO products_ingredients (productId, ingredientId, quantity)
+                    VALUES (?, ?, ?)
+                ''', (product_id, ingredient_id, quantity))
+                
+                conn.commit()
+                return True
+            except sqlite3.IntegrityError:
+                return False
+
+    def add_semi_finished_to_product(self, product_id: int, semi_finished_id: int, quantity: float = 100) -> bool:
+        """
+        Добавляет полуфабрикат в продукт
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute('''
+                    INSERT INTO products_semiFinished (productId, semiFinishedId, quantity)
+                    VALUES (?, ?, ?)
+                ''', (product_id, semi_finished_id, quantity))
+                
+                conn.commit()
+                return True
+            except sqlite3.IntegrityError:
+                return False
+
+    def remove_ingredient_from_product(self, product_id: int, ingredient_id: int) -> bool:
+        """
+        Удаляет ингридиент из продукта
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                DELETE FROM products_ingredients 
+                WHERE productId = ? AND ingredientId = ?
+            ''', (product_id, ingredient_id))
+            
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def remove_semi_finished_from_product(self, product_id: int, semi_finished_id: int) -> bool:
+        """
+        Удаляет полуфабрикат из продукта
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                DELETE FROM products_semiFinished 
+                WHERE productId = ? AND semiFinishedId = ?
+            ''', (product_id, semi_finished_id))
+            
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def get_product_ingredients(self, product_id: int) -> List[Dict]:
+        """
+        Получает все ингридиенты продукта с их количеством
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT i.id, i.name, i.calories, i.kJoule, i.proteins, i.fats, i.carbs, pi.quantity
+                FROM products_ingredients pi
+                JOIN ingredients i ON pi.ingredientId = i.id
+                WHERE pi.productId = ?
+                ORDER BY i.name
+            ''', (product_id,))
+            
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    def get_product_semi_finished(self, product_id: int) -> List[Dict]:
+        """
+        Получает все полуфабрикаты продукта с их количеством
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT sf.id, sf.name, psf.quantity
+                FROM products_semiFinished psf
+                JOIN semiFinished sf ON psf.semiFinishedId = sf.id
+                WHERE psf.productId = ?
+                ORDER BY sf.name
+            ''', (product_id,))
+            
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    def calculate_product_nutrition(self, product_id: int) -> Dict[str, float]:
+        """
+        Рассчитывает пищевую ценность продукта на 100г
+        """
+        ingredients = self.get_product_ingredients(product_id)
+        
+        semi_finished_list = self.get_product_semi_finished(product_id)
+        
+        if not ingredients and not semi_finished_list:
+            return {'calories': 0, 'kJoule': 0, 'proteins': 0, 'fats': 0, 'carbs': 0}
+        
+        total_weight = 0
+        total_calories = 0
+        total_kJoule = 0
+        total_proteins = 0
+        total_fats = 0
+        total_carbs = 0
+        
+        for ingredient in ingredients:
+            factor = ingredient['quantity'] / 100.0
+            total_weight += ingredient['quantity']
+            total_calories += ingredient['calories'] * factor
+            total_kJoule += ingredient['kJoule'] * factor
+            total_proteins += ingredient['proteins'] * factor
+            total_fats += ingredient['fats'] * factor
+            total_carbs += ingredient['carbs'] * factor
+        
+        for sf in semi_finished_list:
+            sf_nutrition = self.calculate_semi_finished_nutrition(sf['id'])
+            factor = sf['quantity'] / 100.0
+            total_weight += sf['quantity']
+            total_calories += sf_nutrition['calories'] * factor
+            total_kJoule += sf_nutrition['kJoule'] * factor
+            total_proteins += sf_nutrition['proteins'] * factor
+            total_fats += sf_nutrition['fats'] * factor
+            total_carbs += sf_nutrition['carbs'] * factor
+        
+        if total_weight == 0:
+            return {'calories': 0, 'kJoule': 0, 'proteins': 0, 'fats': 0, 'carbs': 0}
+        
         factor_to_100g = 100.0 / total_weight
         
         return {
@@ -442,5 +705,5 @@ class IngredientDB:
         }
 
 
-# Создание глобального экземпляра базы данных
+
 db = IngredientDB()

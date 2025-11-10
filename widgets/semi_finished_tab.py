@@ -14,7 +14,7 @@ class SemiFinishedTab(QWidget):
     def __init__(self):
         super().__init__()
         self.current_semi_finished_id = None
-        self.current_ingredients = []  # Локальный список ингридиентов перед сохранением в БД
+        self.current_ingredients = [] 
         self._setup_ui()
         self._load_semi_finished()
         self._load_ingredients()
@@ -22,32 +22,24 @@ class SemiFinishedTab(QWidget):
     def _setup_ui(self):
         main_layout = QVBoxLayout(self)
         
-        # Заголовок
         title_label = QLabel("Управление полуфабрикатами")
         title_label.setStyleSheet("font-size: 18px; font-weight: bold; margin: 10px;")
         main_layout.addWidget(title_label)
-        
-        # Область с формами (слева) и таблицей (справа)
         content_layout = QHBoxLayout()
         
-        # Левая панель с формами
         left_panel = QWidget()
         left_panel.setMaximumWidth(500)
         left_layout = QVBoxLayout(left_panel)
         
-        # Группа для управления полуфабрикатами
         self._create_semi_finished_group(left_layout)
         
-        # Группа для управления ингридиентами полуфабриката
         self._create_ingredients_group(left_layout)
         
         content_layout.addWidget(left_panel)
         
-        # Правая панель с таблицей
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
         
-        # Таблица полуфабрикатов
         self._create_semi_finished_table(right_layout)
         
         content_layout.addWidget(right_panel, 1)
@@ -58,13 +50,11 @@ class SemiFinishedTab(QWidget):
         group = QGroupBox("Управление полуфабрикатами")
         group_layout = QVBoxLayout(group)
         
-        # Поле для названия
         self.name_edit = QLineEdit()
         self.name_edit.setPlaceholderText("Название полуфабриката")
         group_layout.addWidget(QLabel("Название:"))
         group_layout.addWidget(self.name_edit)
         
-        # Кнопки управления
         buttons_layout = QHBoxLayout()
         
         self.add_button = QPushButton("Добавить ПФ")
@@ -90,7 +80,6 @@ class SemiFinishedTab(QWidget):
         group = QGroupBox("Ингридиенты полуфабриката")
         group_layout = QVBoxLayout(group)
         
-        # Выбор ингридиента
         ingredients_layout = QHBoxLayout()
         
         self.ingredient_combo = QComboBox()
@@ -107,12 +96,11 @@ class SemiFinishedTab(QWidget):
         
         group_layout.addLayout(ingredients_layout)
         
-        # Кнопки для ингридиентов
         ingredient_buttons_layout = QHBoxLayout()
         
         self.add_ingredient_button = QPushButton("Добавить в список")
         self.add_ingredient_button.clicked.connect(self._on_add_ingredient_to_list)
-        self.add_ingredient_button.setEnabled(True)  # Всегда активна для нового ПФ
+        self.add_ingredient_button.setEnabled(True)  
         ingredient_buttons_layout.addWidget(self.add_ingredient_button)
         
         self.remove_ingredient_button = QPushButton("Удалить из списка")
@@ -122,27 +110,23 @@ class SemiFinishedTab(QWidget):
         
         group_layout.addLayout(ingredient_buttons_layout)
         
-        # Кнопка сохранения состава в БД
         self.save_composition_button = QPushButton("Сохранить состав в БД")
         self.save_composition_button.clicked.connect(self._on_save_composition)
         self.save_composition_button.setEnabled(True)
         self.save_composition_button.setStyleSheet("background-color: #4CAF50; color: white;")
         group_layout.addWidget(self.save_composition_button)
         
-        # Кнопка загрузки состава из БД
         self.load_composition_button = QPushButton("Загрузить состав из БД")
         self.load_composition_button.clicked.connect(self._on_load_composition)
         self.load_composition_button.setEnabled(False)
         self.load_composition_button.setStyleSheet("background-color: #2196F3; color: white;")
         group_layout.addWidget(self.load_composition_button)
         
-        # Список ингридиентов полуфабриката
         group_layout.addWidget(QLabel("Состав:"))
         self.ingredients_list = QListWidget()
         self.ingredients_list.itemSelectionChanged.connect(self._on_ingredient_selection_changed)
         group_layout.addWidget(self.ingredients_list)
         
-        # Информация о пищевой ценности
         self.nutrition_label = QLabel("Добавьте ингридиенты для расчета КБЖУ")
         self.nutrition_label.setStyleSheet("font-weight: bold; color: #2c3e50; margin: 5px;")
         group_layout.addWidget(self.nutrition_label)
@@ -155,25 +139,38 @@ class SemiFinishedTab(QWidget):
         layout.addWidget(self.table_label)
         
         self.semi_finished_table = QTableWidget()
-        self.semi_finished_table.setColumnCount(2)
-        self.semi_finished_table.setHorizontalHeaderLabels(["ID", "Название"])
+        self.semi_finished_table.setColumnCount(7)
+        self.semi_finished_table.setHorizontalHeaderLabels([
+            "ID", "Название", "Калории", "Белки", "Жиры", "Углеводы", "кДж"
+        ])
         
-        # Настройка таблицы
         header = self.semi_finished_table.horizontalHeader()
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Название растягивается
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Калории
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Белки
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Жиры
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Углеводы
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # кДж
         
         self.semi_finished_table.itemSelectionChanged.connect(self._on_table_selection_changed)
         layout.addWidget(self.semi_finished_table)
     
     def _load_semi_finished(self):
-        """Загрузка полуфабрикатов из БД"""
+        """Загрузка полуфабрикатов из БД с расчетом КБЖУ"""
         try:
             semi_finished = db.get_all_semi_finished()
             self.semi_finished_table.setRowCount(len(semi_finished))
             
             for row, sf in enumerate(semi_finished):
+                nutrition = db.calculate_semi_finished_nutrition(sf[0])
+                
                 self.semi_finished_table.setItem(row, 0, QTableWidgetItem(str(sf[0])))  # ID
                 self.semi_finished_table.setItem(row, 1, QTableWidgetItem(str(sf[1])))  # Название
+                self.semi_finished_table.setItem(row, 2, QTableWidgetItem(str(nutrition['calories'])))  # Калории
+                self.semi_finished_table.setItem(row, 3, QTableWidgetItem(str(nutrition['proteins'])))  # Белки
+                self.semi_finished_table.setItem(row, 4, QTableWidgetItem(str(nutrition['fats'])))  # Жиры
+                self.semi_finished_table.setItem(row, 5, QTableWidgetItem(str(nutrition['carbs'])))  # Углеводы
+                self.semi_finished_table.setItem(row, 6, QTableWidgetItem(str(nutrition['kJoule'])))  # кДж
             
             self.table_label.setText(f"Список полуфабрикатов (всего: {len(semi_finished)})")
             
@@ -189,7 +186,7 @@ class SemiFinishedTab(QWidget):
             for ingredient in ingredients:
                 self.ingredient_combo.addItem(
                     f"{ingredient[1]} (К:{ingredient[2]} Б:{ingredient[4]} Ж:{ingredient[5]} У:{ingredient[6]})",
-                    ingredient[0]  # ID как userData
+                    ingredient[0]
                 )
             
         except Exception as e:
@@ -228,7 +225,6 @@ class SemiFinishedTab(QWidget):
                 item.setData(Qt.ItemDataRole.UserRole, ingredient['id'])
                 self.ingredients_list.addItem(item)
             
-            # Расчет и отображение КБЖУ
             self._calculate_and_display_nutrition()
             
         except Exception as e:
@@ -246,7 +242,6 @@ class SemiFinishedTab(QWidget):
             self.nutrition_label.setText("Ошибка: нулевой вес")
             return
         
-        # Рассчитываем суммарные значения
         total_calories = 0
         total_kJoule = 0
         total_proteins = 0
@@ -256,12 +251,11 @@ class SemiFinishedTab(QWidget):
         for ingredient in self.current_ingredients:
             factor = ingredient['quantity'] / 100.0
             total_calories += ingredient['calories'] * factor
-            total_kJoule += ingredient['calories'] * 4.184 * factor  # Расчет kJoule
+            total_kJoule += ingredient['calories'] * 4.184 * factor
             total_proteins += ingredient['proteins'] * factor
             total_fats += ingredient['fats'] * factor
             total_carbs += ingredient['carbs'] * factor
         
-        # Приводим к 100г
         factor_to_100g = 100.0 / total_weight
         
         nutrition = {
@@ -298,7 +292,6 @@ class SemiFinishedTab(QWidget):
         self.delete_button.setEnabled(True)
         self.load_composition_button.setEnabled(True)
         
-        # Автоматически загружаем состав при выборе ПФ
         self._load_composition_from_db(self.current_semi_finished_id)
     
     def _on_ingredient_selection_changed(self):
@@ -317,7 +310,6 @@ class SemiFinishedTab(QWidget):
             QMessageBox.warning(self, "Ошибка", "Полуфабрикат с таким названием уже существует")
             return
         
-        # Проверка на пустой состав
         if not self.current_ingredients:
             reply = QMessageBox.question(
                 self,
@@ -329,11 +321,9 @@ class SemiFinishedTab(QWidget):
                 return
         
         try:
-            # Создаем полуфабрикат в БД
             semi_finished_id = db.add_semi_finished(name)
             print(f"создание полуфабриката name:{name} id:{semi_finished_id}")
             
-            # Сохраняем состав в БД
             if self.current_ingredients:
                 for ingredient in self.current_ingredients:
                     db.add_ingredient_to_semi_finished(
@@ -343,7 +333,6 @@ class SemiFinishedTab(QWidget):
                     )
                 print(f"сохранение состава для ПФ id:{semi_finished_id}")
             
-            # Очищаем форму
             self.name_edit.clear()
             self._clear_composition()
             self._load_semi_finished()
@@ -428,20 +417,17 @@ class SemiFinishedTab(QWidget):
         ingredient_name = self.ingredient_combo.currentText().split(' (')[0]
         quantity = self.quantity_spin.value()
         
-        # Проверка на повторное добавление
         for ingredient in self.current_ingredients:
             if ingredient['id'] == ingredient_id:
                 QMessageBox.warning(self, "Ошибка", "Этот ингридиент уже добавлен в состав")
                 return
         
-        # Получаем данные ингридиента из БД
         try:
             ingredient_data = db.get_ingredient(ingredient_id)
             if not ingredient_data:
                 QMessageBox.warning(self, "Ошибка", "Ингридиент не найден в базе")
                 return
             
-            # Добавляем в локальный список
             new_ingredient = {
                 'id': ingredient_id,
                 'name': ingredient_name,
@@ -453,7 +439,6 @@ class SemiFinishedTab(QWidget):
             }
             self.current_ingredients.append(new_ingredient)
             
-            # Добавляем в список отображения
             item = QListWidgetItem(
                 f"{ingredient_name} - {quantity}г "
                 f"(К:{ingredient_data['calories']} Б:{ingredient_data['proteins']} "
@@ -464,10 +449,8 @@ class SemiFinishedTab(QWidget):
             
             print(f"добавление ингридиента в список: {ingredient_name} - {quantity}г")
             
-            # Пересчитываем КБЖУ
             self._calculate_and_display_nutrition()
             
-            # Сбрасываем количество к значению по умолчанию
             self.quantity_spin.setValue(100)
             
         except Exception as e:
@@ -483,15 +466,12 @@ class SemiFinishedTab(QWidget):
         ingredient_id = item.data(Qt.ItemDataRole.UserRole)
         ingredient_name = item.text().split(' - ')[0]
         
-        # Удаляем из локального списка
         self.current_ingredients = [ing for ing in self.current_ingredients if ing['id'] != ingredient_id]
         
-        # Удаляем из списка отображения
         self.ingredients_list.takeItem(self.ingredients_list.row(item))
         
         print(f"удаление ингридиента из списка: {ingredient_name}")
-        
-        # Пересчитываем КБЖУ
+    
         self._calculate_and_display_nutrition()
     
     def _on_save_composition(self):
@@ -505,12 +485,10 @@ class SemiFinishedTab(QWidget):
             return
         
         try:
-            # Удаляем старый состав из БД
             old_ingredients = db.get_semi_finished_ingredients(self.current_semi_finished_id)
             for old_ing in old_ingredients:
                 db.remove_ingredient_from_semi_finished(self.current_semi_finished_id, old_ing['id'])
             
-            # Сохраняем новый состав в БД
             for ingredient in self.current_ingredients:
                 success = db.add_ingredient_to_semi_finished(
                     self.current_semi_finished_id,
@@ -521,6 +499,9 @@ class SemiFinishedTab(QWidget):
                     raise Exception(f"Не удалось добавить ингридиент {ingredient['name']}")
             
             print(f"сохранение состава для ПФ id:{self.current_semi_finished_id}")
+            
+            self._load_semi_finished()
+            
             QMessageBox.information(self, "Успех", "Состав полуфабриката сохранен в БД!")
             
         except Exception as e:

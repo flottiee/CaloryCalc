@@ -1,164 +1,227 @@
-import sys
-from PyQt6 import QtWidgets, QtCore
-from PyQt6.QtWidgets import QWidget
+import sqlite3
+import os
+from database import db
 
+def create_test_data():
+    """Создает тестовые данные в базе"""
+    
+    # Очищаем существующие данные (опционально)
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    
+    # Очистка таблиц (раскомментируй если нужно очистить старые данные)
+    # cursor.execute('DELETE FROM products_semiFinished')
+    # cursor.execute('DELETE FROM products_ingredients')
+    # cursor.execute('DELETE FROM semiFinished_ingredients')
+    # cursor.execute('DELETE FROM products')
+    # cursor.execute('DELETE FROM semiFinished')
+    # cursor.execute('DELETE FROM ingredients')
+    
+    conn.commit()
+    conn.close()
+    
+    # Тестовые ингредиенты
+    ingredients = [
+        # name, calories, proteins, fats, carbs
+        ("Мука пшеничная", 364, 10.3, 1.0, 76.1),
+        ("Сахар", 398, 0.0, 0.0, 99.8),
+        ("Яйцо куриное", 157, 12.7, 11.5, 0.7),
+        ("Молоко 3.2%", 64, 3.2, 3.6, 4.8),
+        ("Масло сливочное", 748, 0.5, 82.5, 0.8),
+        ("Соль", 0, 0, 0, 0),
+        ("Дрожжи сухие", 325, 40.0, 6.0, 35.0),
+        ("Вода", 0, 0, 0, 0),
+        ("Лук репчатый", 41, 1.4, 0.2, 9.1),
+        ("Мясо говяжье", 187, 18.9, 12.4, 0.0),
+        ("Морковь", 35, 1.3, 0.1, 7.2),
+        ("Картофель", 77, 2.0, 0.4, 16.3),
+        ("Томатная паста", 82, 4.3, 0.2, 16.7),
+        ("Сметана 20%", 206, 2.5, 20.0, 3.4),
+        ("Сыр твердый", 360, 26.0, 26.5, 3.5),
+    ]
+    
+    print("Добавляем ингредиенты...")
+    ingredient_ids = {}
+    for name, calories, proteins, fats, carbs in ingredients:
+        try:
+            ingredient_id = db.add_ingredient(name, calories, proteins, fats, carbs)
+            ingredient_ids[name] = ingredient_id
+            print(f"  - {name} (ID: {ingredient_id})")
+        except Exception as e:
+            print(f"Ошибка при добавлении {name}: {e}")
+    
+    # Тестовые полуфабрикаты
+    print("\nДобавляем полуфабрикаты...")
+    semi_finished = [
+        "Тесто дрожжевое",
+        "Фарш мясной", 
+        "Овощная смесь",
+        "Соус томатный"
+    ]
+    
+    sf_ids = {}
+    for name in semi_finished:
+        try:
+            sf_id = db.add_semi_finished(name)
+            sf_ids[name] = sf_id
+            print(f"  - {name} (ID: {sf_id})")
+        except Exception as e:
+            print(f"Ошибка при добавлении {name}: {e}")
+    
+    # Составы полуфабрикатов
+    print("\nДобавляем составы полуфабрикатов...")
+    
+    # Тесто дрожжевое
+    dough_composition = [
+        ("Мука пшеничная", 500),
+        ("Вода", 300),
+        ("Дрожжи сухие", 10),
+        ("Сахар", 20),
+        ("Соль", 5),
+        ("Масло сливочное", 30)
+    ]
+    
+    for ing_name, quantity in dough_composition:
+        if ing_name in ingredient_ids:
+            db.add_ingredient_to_semi_finished(sf_ids["Тесто дрожжевое"], ingredient_ids[ing_name], quantity)
+            print(f"  - Тесто дрожжевое: {ing_name} - {quantity}г")
+    
+    # Фарш мясной
+    mince_composition = [
+        ("Мясо говяжье", 800),
+        ("Лук репчатый", 200),
+        ("Соль", 10)
+    ]
+    
+    for ing_name, quantity in mince_composition:
+        if ing_name in ingredient_ids:
+            db.add_ingredient_to_semi_finished(sf_ids["Фарш мясной"], ingredient_ids[ing_name], quantity)
+            print(f"  - Фарш мясной: {ing_name} - {quantity}г")
+    
+    # Овощная смесь
+    vegetables_composition = [
+        ("Лук репчатый", 300),
+        ("Морковь", 400),
+        ("Картофель", 300)
+    ]
+    
+    for ing_name, quantity in vegetables_composition:
+        if ing_name in ingredient_ids:
+            db.add_ingredient_to_semi_finished(sf_ids["Овощная смесь"], ingredient_ids[ing_name], quantity)
+            print(f"  - Овощная смесь: {ing_name} - {quantity}г")
+    
+    # Соус томатный
+    sauce_composition = [
+        ("Томатная паста", 200),
+        ("Вода", 300),
+        ("Сметана 20%", 100),
+        ("Соль", 5)
+    ]
+    
+    for ing_name, quantity in sauce_composition:
+        if ing_name in ingredient_ids:
+            db.add_ingredient_to_semi_finished(sf_ids["Соус томатный"], ingredient_ids[ing_name], quantity)
+            print(f"  - Соус томатный: {ing_name} - {quantity}г")
+    
+    # Тестовые продукты
+    print("\nДобавляем продукты...")
+    products = [
+        "Пирожок с мясом",
+        "Суп овощной",
+        "Запеканка картофельная"
+    ]
+    
+    product_ids = {}
+    for name in products:
+        try:
+            product_id = db.add_product(name)
+            product_ids[name] = product_id
+            print(f"  - {name} (ID: {product_id})")
+        except Exception as e:
+            print(f"Ошибка при добавлении {name}: {e}")
+    
+    # Составы продуктов
+    print("\nДобавляем составы продуктов...")
+    
+    # Пирожок с мясом
+    pie_composition_ingredients = [
+        ("Яйцо куриное", 50)
+    ]
+    
+    for ing_name, quantity in pie_composition_ingredients:
+        if ing_name in ingredient_ids:
+            db.add_ingredient_to_product(product_ids["Пирожок с мясом"], ingredient_ids[ing_name], quantity)
+            print(f"  - Пирожок с мясом (ингредиент): {ing_name} - {quantity}г")
+    
+    pie_composition_sf = [
+        ("Тесто дрожжевое", 150),
+        ("Фарш мясной", 100)
+    ]
+    
+    for sf_name, quantity in pie_composition_sf:
+        if sf_name in sf_ids:
+            db.add_semi_finished_to_product(product_ids["Пирожок с мясом"], sf_ids[sf_name], quantity)
+            print(f"  - Пирожок с мясом (полуфабрикат): {sf_name} - {quantity}г")
+    
+    # Суп овощной
+    soup_composition_ingredients = [
+        ("Вода", 500),
+        ("Соль", 5),
+        ("Сметана 20%", 50)
+    ]
+    
+    for ing_name, quantity in soup_composition_ingredients:
+        if ing_name in ingredient_ids:
+            db.add_ingredient_to_product(product_ids["Суп овощной"], ingredient_ids[ing_name], quantity)
+            print(f"  - Суп овощной (ингредиент): {ing_name} - {quantity}г")
+    
+    soup_composition_sf = [
+        ("Овощная смесь", 300),
+        ("Соус томатный", 200)
+    ]
+    
+    for sf_name, quantity in soup_composition_sf:
+        if sf_name in sf_ids:
+            db.add_semi_finished_to_product(product_ids["Суп овощной"], sf_ids[sf_name], quantity)
+            print(f"  - Суп овощной (полуфабрикат): {sf_name} - {quantity}г")
+    
+    # Запеканка картофельная
+    casserole_composition_ingredients = [
+        ("Сыр твердый", 100),
+        ("Сметана 20%", 100),
+        ("Соль", 5),
+        ("Масло сливочное", 20)
+    ]
+    
+    for ing_name, quantity in casserole_composition_ingredients:
+        if ing_name in ingredient_ids:
+            db.add_ingredient_to_product(product_ids["Запеканка картофельная"], ingredient_ids[ing_name], quantity)
+            print(f"  - Запеканка картофельная (ингредиент): {ing_name} - {quantity}г")
+    
+    casserole_composition_sf = [
+        ("Овощная смесь", 500)
+    ]
+    
+    for sf_name, quantity in casserole_composition_sf:
+        if sf_name in sf_ids:
+            db.add_semi_finished_to_product(product_ids["Запеканка картофельная"], sf_ids[sf_name], quantity)
+            print(f"  - Запеканка картофельная (полуфабрикат): {sf_name} - {quantity}г")
+    
+    print("\n" + "="*50)
+    print("Тестовые данные успешно созданы!")
+    print("="*50)
+    
+    # Показываем итоговую статистику
+    print(f"\nИтоговая статистика:")
+    print(f"Ингредиентов: {db.get_ingredients_count()}")
+    print(f"Полуфабрикатов: {db.get_semi_finished_count()}")
+    print(f"Продуктов: {db.get_products_count()}")
+    
+    # Показываем КБЖУ для продуктов
+    print(f"\nКБЖУ продуктов:")
+    for product_name, product_id in product_ids.items():
+        nutrition = db.calculate_product_nutrition(product_id)
+        print(f"  - {product_name}: К:{nutrition['calories']} Б:{nutrition['proteins']} Ж:{nutrition['fats']} У:{nutrition['carbs']}")
 
-class Ui_MainWindow(object):
-    def setupUi(self, MainWindow):
-        MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(800, 500)
-        self.centralwidget = QtWidgets.QWidget(parent=MainWindow)
-        self.centralwidget.setObjectName("centralwidget")
-        self.tab_widget = QtWidgets.QTabWidget(self.centralwidget)
-        self.tab_widget.setGeometry(QtCore.QRect(0, 0, 800, 500))
-        
-        # Вкладка "Калькулятор"
-        self.calculator_tab = QWidget()
-        self.tab_widget.addTab(self.calculator_tab, "Calculator")
-        # Вкладка "Ингредиенты"
-        self.ingredients_tab = QWidget()
-        self.init_ingredients_tab()
-        self.tab_widget.addTab(self.ingredients_tab, "Ingredients")
-        # Вкладка "Полуфабрикаты"
-        self.semi_finished_tab = QWidget()
-        self.init_semi_finished_tab()
-        self.tab_widget.addTab(self.semi_finished_tab, "Semi-finished")
-        # Вкладка "Продукция"
-        self.products_tab = QWidget()
-        self.tab_widget.addTab(self.products_tab, "Products")
-        MainWindow.setCentralWidget(self.centralwidget)
-    def init_ingredients_tab(self):
-        layout = QtWidgets.QVBoxLayout()
-        # Заголовок
-        layout.addWidget(QtWidgets.QLabel("Ingredients Management"))
-        # Таблица для ингредиентов
-        self.ingredients_table = QtWidgets.QTableWidget()
-        self.ingredients_table.setColumnCount(5)
-        self.ingredients_table.setHorizontalHeaderLabels(["ID", "Name", "Calories", "Proteins", "Fats", "Carbs"])
-        layout.addWidget(self.ingredients_table)
-        #------------------------------------------------------------
-        # Поля для добавления ингредиентов
-        self.name_input = QtWidgets.QLineEdit()
-        self.calories_input = QtWidgets.QLineEdit()
-        self.proteins_input = QtWidgets.QLineEdit()
-        self.fats_input = QtWidgets.QLineEdit()
-        self.carbs_input = QtWidgets.QLineEdit()
-        #Раздел для добавления ингридиента в таблицу
-        layout.addWidget(QtWidgets.QLabel("Add Ingredient"))
-        layout.addWidget(QtWidgets.QLabel("Name:"))
-        layout.addWidget(self.name_input)
-        layout.addWidget(QtWidgets.QLabel("Calories:"))
-        layout.addWidget(self.calories_input)
-        layout.addWidget(QtWidgets.QLabel("Proteins:"))
-        layout.addWidget(self.proteins_input)
-        layout.addWidget(QtWidgets.QLabel("Fats:"))
-        layout.addWidget(self.fats_input)
-        layout.addWidget(QtWidgets.QLabel("Carbs:"))
-        layout.addWidget(self.carbs_input)
-        add_button = QtWidgets.QPushButton("Add Ingredient")
-        #------------------------------------------------------------
-        # Поля для изменения ингредиента
-        self.id_update_input = QtWidgets.QLineEdit()
-        self.name_update_input = QtWidgets.QLineEdit()
-        self.calories_update_input = QtWidgets.QLineEdit()
-        self.proteins_update_input = QtWidgets.QLineEdit()
-        self.fats_update_input = QtWidgets.QLineEdit()
-        self.carbs_update_input = QtWidgets.QLineEdit()
-        #Раздел для изменения ингридиента в таблице
-        layout.addWidget(QtWidgets.QLabel("Изменить Ingredient"))
-        layout.addWidget(QtWidgets.QLabel("Id:"))
-        layout.addWidget(self.name_update_input)
-        layout.addWidget(QtWidgets.QLabel("Name:"))
-        layout.addWidget(self.name_update_input)
-        layout.addWidget(QtWidgets.QLabel("Calories:"))
-        layout.addWidget(self.calories_update_input)
-        layout.addWidget(QtWidgets.QLabel("Proteins:"))
-        layout.addWidget(self.proteins_update_input)
-        layout.addWidget(QtWidgets.QLabel("Fats:"))
-        layout.addWidget(self.fats_update_input)
-        layout.addWidget(QtWidgets.QLabel("Carbs:"))
-        layout.addWidget(self.carbs_update_input)
-        add_button = QtWidgets.QPushButton("Update Ingredient")
-        # Кнопки для действий
-        buttons_layout = QtWidgets.QHBoxLayout()
-        update_button = QtWidgets.QPushButton("Update Ingredient")
-        delete_button = QtWidgets.QPushButton("Delete Ingredient")
-        buttons_layout.addWidget(add_button)
-        buttons_layout.addWidget(update_button)
-        buttons_layout.addWidget(delete_button)
-        layout.addLayout(buttons_layout)
-        # Подключение кнопок к функциям
-        add_button.clicked.connect(self.add_ingredient)
-        update_button.clicked.connect(self.update_ingredient)
-        delete_button.clicked.connect(self.delete_ingredient)
-        self.ingredients_tab.setLayout(layout)
-    def add_ingredient(self):
-        name = self.name_input.text().strip()
-        calories = self.calories_input.text().strip()
-        proteins = self.proteins_input.text().strip()
-        fats = self.fats_input.text().strip()
-        carbs = self.carbs_input.text().strip()
-        # Здесь должен быть код для добавления ингредиента в БД.
-        print(f"Adding ingredient: {name}, C: {calories}, P: {proteins}, F: {fats}, C: {carbs}")
-        self.clear_ingredient_inputs()
-    def update_ingredient(self):
-        selected_row = self.ingredients_table.currentRow()
-        if selected_row >= 0:
-            ingredient_id = self.ingredients_table.item(selected_row, 0).text()
-            name = self.name_input.text().strip()
-            calories = self.calories_input.text().strip()
-            proteins = self.proteins_input.text().strip()
-            fats = self.fats_input.text().strip()
-            carbs = self.carbs_input.text().strip()
-            # Здесь должен быть код для обновления ингредиента в БД.
-            print(f"Updating ingredient ID {ingredient_id} to {name}, C: {calories}, P: {proteins}, F: {fats}, C: {carbs}")
-            self.clear_ingredient_inputs()
-    def delete_ingredient(self):
-        selected_row = self.ingredients_table.currentRow()
-        if selected_row >= 0:
-            ingredient_id = self.ingredients_table.item(selected_row, 0).text()
-            # Здесь должен быть код для удаления ингредиента из БД.
-            print(f"Deleting ingredient ID {ingredient_id}")
-            self.ingredients_table.removeRow(selected_row)
-    def clear_ingredient_inputs(self):
-        self.name_input.clear()
-        self.calories_input.clear()
-        self.proteins_input.clear()
-        self.fats_input.clear()
-        self.carbs_input.clear()
-    def init_semi_finished_tab(self):
-        layout = QtWidgets.QVBoxLayout()
-        # Заголовок
-        layout.addWidget(QtWidgets.QLabel("Semi-finished Products Management"))
-        # Таблица для полуфабрикатов
-        self.semi_finished_table = QtWidgets.QTableWidget()
-        self.semi_finished_table.setColumnCount(4)  # ID, Name, Calories, Proteins, Fats, Carbs
-        self.semi_finished_table.setHorizontalHeaderLabels(["ID", "Name", "Ingredients", "Total Nutrition"])
-        layout.addWidget(self.semi_finished_table)
-        # Поля для добавления полуфабрикатов
-        self.semi_finished_name_input = QtWidgets.QLineEdit()
-        layout.addWidget(QtWidgets.QLabel("Add Semi-finished Product:"))
-        layout.addWidget(QtWidgets.QLabel("Name:"))
-        layout.addWidget(self.semi_finished_name_input)
-        # Кнопка для добавления полуфабриката
-        add_semi_finished_button = QtWidgets.QPushButton("Add Semi-finished")
-        layout.addWidget(add_semi_finished_button)
-        add_semi_finished_button.clicked.connect(self.add_semi_finished)
-        layout.addWidget(self.semi_finished_table)
-        self.semi_finished_tab.setLayout(layout)
-    def add_semi_finished(self):
-        name = self.semi_finished_name_input.text()
-        # Здесь должен быть код для добавления полуфабриката в БД.
-        print(f"Adding semi-finished product: {name}")
-        self.clear_semi_finished_inputs()
-    def clear_semi_finished_inputs(self):
-        self.semi_finished_name_input.clear()
-def main():
-    app = QtWidgets.QApplication(sys.argv)
-    MainWindow = QtWidgets.QMainWindow()
-    ui = Ui_MainWindow()
-    ui.setupUi(MainWindow)
-    MainWindow.show()
-    sys.exit(app.exec())
 if __name__ == "__main__":
-    main()
+    create_test_data()
