@@ -703,3 +703,10 @@ class ProductsTab(QWidget):
             
         except Exception as e:
             QMessageBox.warning(self, "Ошибка", f"Не удалось загрузить состав: {str(e)}")
+
+    def on_tab_activated(self):
+        """Метод, вызываемый при открытии вкладки"""
+        print("открыта вкладка продуктов")
+        self._load_products()
+        self._load_semi_finished()
+        self._load_ingredients()

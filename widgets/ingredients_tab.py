@@ -18,7 +18,7 @@ class IngredientsTab(QWidget):
     def _setup_ui(self):
         main_layout = QVBoxLayout(self)
         
-        title_label = QLabel("Управление ингридиентами")
+        title_label = QLabel("Управление ингредиентами")
         title_label.setStyleSheet("font-size: 18px; font-weight: bold; margin: 10px;")
         main_layout.addWidget(title_label)
         
@@ -46,11 +46,11 @@ class IngredientsTab(QWidget):
         main_layout.addLayout(content_layout)
     
     def _create_add_group(self, layout):
-        group = QGroupBox("Добавление ингридиента")
+        group = QGroupBox("Добавление ингредиента")
         group_layout = QVBoxLayout(group)
         
         self.add_name_edit = QLineEdit()
-        self.add_name_edit.setPlaceholderText("Название ингридиента")
+        self.add_name_edit.setPlaceholderText("Название ингредиента")
         group_layout.addWidget(QLabel("Название:"))
         group_layout.addWidget(self.add_name_edit)
         
@@ -83,18 +83,18 @@ class IngredientsTab(QWidget):
         group_layout.addLayout(nutrients_layout2)
         
         # Кнопка добавления
-        add_button = QPushButton("Добавить ингридиент")
+        add_button = QPushButton("Добавить ингредиент")
         add_button.clicked.connect(self._on_add_ingredient)
         group_layout.addWidget(add_button)
         
         layout.addWidget(group)
     
     def _create_update_group(self, layout):
-        group = QGroupBox("Обновление ингридиента")
+        group = QGroupBox("Обновление ингредиента")
         group_layout = QVBoxLayout(group)
         
         self.update_id_edit = QLineEdit()
-        self.update_id_edit.setPlaceholderText("ID ингридиента")
+        self.update_id_edit.setPlaceholderText("ID ингредиента")
         group_layout.addWidget(QLabel("ID:"))
         group_layout.addWidget(self.update_id_edit)
         
@@ -131,22 +131,22 @@ class IngredientsTab(QWidget):
         
         group_layout.addLayout(nutrients_layout2)
         
-        update_button = QPushButton("Обновить ингридиент")
+        update_button = QPushButton("Обновить ингредиент")
         update_button.clicked.connect(self._on_update_ingredient)
         group_layout.addWidget(update_button)
         
         layout.addWidget(group)
     
     def _create_delete_group(self, layout):
-        group = QGroupBox("Удаление ингридиента")
+        group = QGroupBox("Удаление ингредиента")
         group_layout = QVBoxLayout(group)
         
         self.delete_id_edit = QLineEdit()
-        self.delete_id_edit.setPlaceholderText("ID ингридиента")
+        self.delete_id_edit.setPlaceholderText("ID ингредиента")
         group_layout.addWidget(QLabel("ID для удаления:"))
         group_layout.addWidget(self.delete_id_edit)
         
-        delete_button = QPushButton("Удалить ингридиент")
+        delete_button = QPushButton("Удалить ингредиент")
         delete_button.clicked.connect(self._on_delete_ingredient)
         delete_button.setStyleSheet("background-color: #ff6b6b; color: white;")
         group_layout.addWidget(delete_button)
@@ -154,7 +154,7 @@ class IngredientsTab(QWidget):
         layout.addWidget(group)
     
     def _create_ingredients_table(self, layout):
-        self.table_label = QLabel("Список ингридиентов:")
+        self.table_label = QLabel("Список ингредиентов:")
         self.table_label.setStyleSheet("font-weight: bold; margin: 5px;")
         layout.addWidget(self.table_label)
         
@@ -185,7 +185,7 @@ class IngredientsTab(QWidget):
                 self.ingredients_table.setItem(row, 5, QTableWidgetItem(str(ingredient[5])))  # Жиры
                 self.ingredients_table.setItem(row, 6, QTableWidgetItem(str(ingredient[6])))  # Углеводы
             
-            self.table_label.setText(f"Список ингридиентов (всего: {len(ingredients)})")
+            self.table_label.setText(f"Список ингредиентов (всего: {len(ingredients)})")
             
         except Exception as e:
             QMessageBox.warning(self, "Ошибка", f"Не удалось загрузить данные: {str(e)}")
@@ -202,21 +202,20 @@ class IngredientsTab(QWidget):
             if not name:
                 QMessageBox.warning(self, "Ошибка", "Введите название ингридиента")
                 return
-        
+            
             if db.ingredient_exists(name):
                 QMessageBox.warning(self, "Ошибка", "Ингридиент с таким названием уже существует")
                 return
             
             try:
-                calories_val = float(calories) if calories else 0.0
+                calories_val = float(calories) if calories else None
                 proteins_val = float(proteins) if proteins else 0.0
                 fats_val = float(fats) if fats else 0.0
                 carbs_val = float(carbs) if carbs else 0.0
+                
             except ValueError:
                 QMessageBox.warning(self, "Ошибка", "Некорректные числовые значения")
                 return
-            
-            print(f"создание элемента name:{name} К:{calories_val} Б:{proteins_val} Ж:{fats_val} У:{carbs_val}")
             
             ingredient_id = db.add_ingredient(
                 name=name,
@@ -226,6 +225,8 @@ class IngredientsTab(QWidget):
                 carbs=carbs_val
             )
             
+            created_ingredient = db.get_ingredient(ingredient_id)
+            
             self.add_name_edit.clear()
             self.add_calories_edit.clear()
             self.add_proteins_edit.clear()
@@ -234,7 +235,11 @@ class IngredientsTab(QWidget):
             
             self._load_ingredients()
             
-            QMessageBox.information(self, "Успех", f"Ингридиент '{name}' добавлен с ID {ingredient_id}!")
+            QMessageBox.information(self, "Успех", 
+                f"Ингридиент '{name}' добавлен!\n"
+                f"Рассчитано автоматически:\n"
+                f"Калории: {created_ingredient['calories']} ккал\n"
+                f"кДж: {created_ingredient['kJoule']} кДж")
             
         except Exception as e:
             QMessageBox.warning(self, "Ошибка", f"Не удалось добавить ингридиент: {str(e)}")
@@ -271,12 +276,11 @@ class IngredientsTab(QWidget):
                 proteins_val = float(proteins) if proteins else None
                 fats_val = float(fats) if fats else None
                 carbs_val = float(carbs) if carbs else None
+                
             except ValueError:
                 QMessageBox.warning(self, "Ошибка", "Некорректные числовые значения")
                 return
-            
-            print(f"обновление элемента id:{ingredient_id} name:{name} К:{calories_val} Б:{proteins_val} Ж:{fats_val} У:{carbs_val}")
-            
+
             success = db.update_ingredient(
                 ingredient_id=int(ingredient_id),
                 name=name if name else None,
@@ -290,6 +294,8 @@ class IngredientsTab(QWidget):
                 QMessageBox.warning(self, "Ошибка", "Не удалось обновить ингридиент")
                 return
             
+            updated_ingredient = db.get_ingredient(int(ingredient_id))
+            
             self.update_id_edit.clear()
             self.update_name_edit.clear()
             self.update_calories_edit.clear()
@@ -299,29 +305,30 @@ class IngredientsTab(QWidget):
             
             self._load_ingredients()
             
-            QMessageBox.information(self, "Успех", "Ингридиент обновлен!")
+            QMessageBox.information(self, "Успех", 
+                f"Ингридиент обновлен!")
             
         except Exception as e:
             QMessageBox.warning(self, "Ошибка", f"Не удалось обновить ингридиент: {str(e)}")
     
     def _on_delete_ingredient(self):
-        """Обработчик удаления ингридиента"""
+        """Обработчик удаления ингредиента"""
         try:
             ingredient_id = self.delete_id_edit.text().strip()
             
             if not ingredient_id:
-                QMessageBox.warning(self, "Ошибка", "Введите ID ингридиента")
+                QMessageBox.warning(self, "Ошибка", "Введите ID ингредиента")
                 return
             
             existing_ingredient = db.get_ingredient(int(ingredient_id))
             if not existing_ingredient:
-                QMessageBox.warning(self, "Ошибка", f"Ингридиент с ID {ingredient_id} не найден")
+                QMessageBox.warning(self, "Ошибка", f"Ингредиент с ID {ingredient_id} не найден")
                 return
             
             reply = QMessageBox.question(
                 self, 
                 "Подтверждение удаления", 
-                f"Вы уверены, что хотите удалить ингридиент '{existing_ingredient['name']}' с ID {ingredient_id}?",
+                f"Вы уверены, что хотите удалить ингредиент '{existing_ingredient['name']}' с ID {ingredient_id}?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             
@@ -331,14 +338,14 @@ class IngredientsTab(QWidget):
                 success = db.delete_ingredient(int(ingredient_id))
                 
                 if not success:
-                    QMessageBox.warning(self, "Ошибка", "Не удалось удалить ингридиент")
+                    QMessageBox.warning(self, "Ошибка", "Не удалось удалить ингредиент")
                     return
                 
                 self.delete_id_edit.clear()
                 
                 self._load_ingredients()
                 
-                QMessageBox.information(self, "Успех", "Ингридиент удален!")
+                QMessageBox.information(self, "Успех", "Ингредиент удален!")
             
         except Exception as e:
-            QMessageBox.warning(self, "Ошибка", f"Не удалось удалить ингридиент: {str(e)}")
+            QMessageBox.warning(self, "Ошибка", f"Не удалось удалить ингредиент: {str(e)}")

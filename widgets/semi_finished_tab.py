@@ -519,3 +519,8 @@ class SemiFinishedTab(QWidget):
             
         except Exception as e:
             QMessageBox.warning(self, "Ошибка", f"Не удалось загрузить состав: {str(e)}")
+    
+    def on_tab_activated(self):
+        """Метод, вызываемый при открытии вкладки"""
+        self._load_semi_finished()
+        self._load_ingredients()

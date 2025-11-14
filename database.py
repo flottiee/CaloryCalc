@@ -85,11 +85,14 @@ class IngredientDB:
     
     # === МЕТОДЫ ДЛЯ ИНГРИДИЕНТОВ ===
     
-    def add_ingredient(self, name: str, calories: float, proteins: float, 
-                      fats: float, carbs: float, kJoule: Optional[float] = None) -> int:
+    def add_ingredient(self, name: str, calories: Optional[float] = None, proteins: float = 0, 
+                  fats: float = 0, carbs: float = 0, kJoule: Optional[float] = None) -> int:
         """
         Добавляет новый ингридиент в базу данных
         """
+        if calories is None:
+            calories = (proteins * 4) + (fats * 9) + (carbs * 4)
+        
         if kJoule is None:
             kJoule = calories * 4.184
         
@@ -134,14 +137,28 @@ class IngredientDB:
             return cursor.fetchall()
     
     def update_ingredient(self, ingredient_id: int, name: Optional[str] = None,
-                         calories: Optional[float] = None, 
-                         proteins: Optional[float] = None,
-                         fats: Optional[float] = None,
-                         carbs: Optional[float] = None,
-                         kJoule: Optional[float] = None) -> bool:
+                     calories: Optional[float] = None, 
+                     proteins: Optional[float] = None,
+                     fats: Optional[float] = None,
+                     carbs: Optional[float] = None,
+                     kJoule: Optional[float] = None) -> bool:
         """
         Обновляет данные ингридиента
         """
+        current_data = self.get_ingredient(ingredient_id)
+        if not current_data:
+            return False
+        
+        new_calories = calories if calories is not None else current_data['calories']
+        new_proteins = proteins if proteins is not None else current_data['proteins']
+        new_fats = fats if fats is not None else current_data['fats']
+        new_carbs = carbs if carbs is not None else current_data['carbs']
+        
+        if any([proteins is not None, fats is not None, carbs is not None]):
+            new_calories = (new_proteins * 4) + (new_fats * 9) + (new_carbs * 4)
+        
+        new_kJoule = kJoule if kJoule is not None else new_calories * 4.184
+        
         update_fields = []
         update_values = []
         
@@ -149,30 +166,20 @@ class IngredientDB:
             update_fields.append("name = ?")
             update_values.append(name)
         
-        if calories is not None:
-            update_fields.append("calories = ?")
-            update_values.append(calories)
-            if kJoule is None:
-                kJoule = calories * 4.184
+        update_fields.append("calories = ?")
+        update_values.append(new_calories)
         
-        if kJoule is not None:
-            update_fields.append("kJoule = ?")
-            update_values.append(kJoule)
+        update_fields.append("kJoule = ?")
+        update_values.append(new_kJoule)
         
-        if proteins is not None:
-            update_fields.append("proteins = ?")
-            update_values.append(proteins)
+        update_fields.append("proteins = ?")
+        update_values.append(new_proteins)
         
-        if fats is not None:
-            update_fields.append("fats = ?")
-            update_values.append(fats)
+        update_fields.append("fats = ?")
+        update_values.append(new_fats)
         
-        if carbs is not None:
-            update_fields.append("carbs = ?")
-            update_values.append(carbs)
-        
-        if not update_fields:
-            return False
+        update_fields.append("carbs = ?")
+        update_values.append(new_carbs)
         
         update_values.append(ingredient_id)
         

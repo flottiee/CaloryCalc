@@ -1,8 +1,11 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                             QLineEdit, QPushButton, QGroupBox, QMessageBox,
                             QComboBox, QListWidget, QListWidgetItem, QDoubleSpinBox,
-                            QTabWidget, QTextEdit, QSplitter, QFrame)
+                            QTabWidget, QTextEdit, QSplitter, QFileDialog)
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtSvgWidgets import QSvgWidget
 from PyQt6.QtCore import Qt
+from datetime import datetime
 import sys
 import os
 
@@ -21,9 +24,20 @@ class CalculatorTab(QWidget):
     def _setup_ui(self):
         main_layout = QVBoxLayout(self)
         
-        title_label = QLabel("Калькулятор рецептов")
+        hbox = QHBoxLayout()
+        title_label = QLabel("Калькулятор калорий")
         title_label.setStyleSheet("font-size: 18px; font-weight: bold; margin: 10px;")
-        main_layout.addWidget(title_label)
+        hbox.addWidget(title_label)
+        
+        
+        self.svg = QSvgWidget(self)
+        #self.svg.move(15, 350)
+        self.svg.load('1680px.svg')
+        self.svg.renderer()
+        self.svg.setFixedSize(120, 60)
+        hbox.addWidget(self.svg)
+
+        main_layout.addLayout(hbox)
         
         splitter = QSplitter(Qt.Orientation.Horizontal)
         
@@ -80,29 +94,40 @@ class CalculatorTab(QWidget):
         quick_add_group = QGroupBox("Быстрое добавление")
         quick_layout = QVBoxLayout(quick_add_group)
         
-        quick_add_layout = QHBoxLayout()
-        self.quick_combo = QComboBox()
-        self.quick_combo.addItem("Ингредиент", "ingredient")
-        self.quick_combo.addItem("Полуфабрикат", "semi_finished")
-        self.quick_combo.addItem("Продукт", "product")
-        quick_add_layout.addWidget(QLabel("Тип:"))
-        quick_add_layout.addWidget(self.quick_combo)
+        type_layout = QHBoxLayout()
+        self.quick_type_combo = QComboBox()
+        self.quick_type_combo.addItem("Ингредиент", "ingredient")
+        self.quick_type_combo.addItem("Полуфабрикат", "semi_finished") 
+        self.quick_type_combo.addItem("Продукт", "product")
+        type_layout.addWidget(QLabel("Тип компонента:"))
+        type_layout.addWidget(self.quick_type_combo)
+        quick_layout.addLayout(type_layout)
         
-        self.quick_quantity = QDoubleSpinBox()
-        self.quick_quantity.setRange(1, 10000)
-        self.quick_quantity.setValue(100)
-        self.quick_quantity.setSuffix(" г")
-        quick_add_layout.addWidget(QLabel("Количество:"))
-        quick_add_layout.addWidget(self.quick_quantity)
+        component_layout = QHBoxLayout()
+        self.quick_component_combo = QComboBox()
+        component_layout.addWidget(QLabel("Компонент:"))
+        component_layout.addWidget(self.quick_component_combo, 1)
+        quick_layout.addLayout(component_layout)
         
-        quick_layout.addLayout(quick_add_layout)
+        weight_layout = QHBoxLayout()
+        self.quick_weight_spin = QDoubleSpinBox()
+        self.quick_weight_spin.setRange(1, 10000)
+        self.quick_weight_spin.setValue(100)
+        self.quick_weight_spin.setSuffix(" г")
+        self.quick_weight_spin.setSingleStep(10)
+        weight_layout.addWidget(QLabel("Вес:"))
+        weight_layout.addWidget(self.quick_weight_spin)
+        quick_layout.addLayout(weight_layout)
         
         self.quick_add_btn = QPushButton("Добавить в рецепт")
         self.quick_add_btn.clicked.connect(self._on_quick_add)
         quick_layout.addWidget(self.quick_add_btn)
         
+        self.quick_type_combo.currentIndexChanged.connect(self._update_quick_component_list)
+        
         layout.addWidget(search_group)
         layout.addWidget(quick_add_group)
+        self._update_quick_component_list()
         
         return panel
     
@@ -209,8 +234,9 @@ class CalculatorTab(QWidget):
     
     def _load_data(self):
         """Загрузка данных для поиска"""
-        self._on_search() 
-    
+        self._on_search()
+        self._update_quick_component_list()  
+        
     def _on_search(self):
         """Обработчик поиска"""
         search_term = self.search_edit.text().strip()
@@ -430,8 +456,146 @@ class CalculatorTab(QWidget):
         self.detailed_nutrition_label.setText(detailed_text)
     
     def _on_export(self):
-        """Экспорт рецепта"""
-        QMessageBox.information(self, "Экспорт", "Функция экспорта будет реализована в будущем!")
+        """Экспорт рецепта в текстовый файл"""
+        if not self.current_ingredients and not self.current_semi_finished:
+            QMessageBox.warning(self, "Ошибка", "Нет данных для экспорта!")
+            return
+        self._on_calculate()
+        
+        export_content = self._generate_export_content()
+        
+        file_path, _ = QFileDialog.getSaveFileName(self, "Сохранить файл", "", "Все файлы (*);;Текстовые файлы (*.txt)")
+
+        if file_path:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(f"{export_content}")
+        else:
+            print("fuck")
+
+        QMessageBox.information(self, "Экспорт", 
+            "этикетка экспортированна в выбранную папку\n"
+            "Выеби меня")
+
+    def _generate_export_content(self):
+        """Генерирует форматированное содержимое для экспорта"""
+        
+        total_weight = 0
+        total_calories = 0
+        total_kJoule = 0
+        total_proteins = 0
+        total_fats = 0
+        total_carbs = 0
+        
+        for ingredient in self.current_ingredients:
+            factor = ingredient['quantity'] / 100.0
+            total_weight += ingredient['quantity']
+            total_calories += ingredient['calories'] * factor
+            total_kJoule += ingredient['calories'] * 4.184 * factor
+            total_proteins += ingredient['proteins'] * factor
+            total_fats += ingredient['fats'] * factor
+            total_carbs += ingredient['carbs'] * factor
+        
+        for sf in self.current_semi_finished:
+            sf_nutrition = db.calculate_semi_finished_nutrition(sf['id'])
+            factor = sf['quantity'] / 100.0
+            total_weight += sf['quantity']
+            total_calories += sf_nutrition['calories'] * factor
+            total_kJoule += sf_nutrition['kJoule'] * factor
+            total_proteins += sf_nutrition['proteins'] * factor
+            total_fats += sf_nutrition['fats'] * factor
+            total_carbs += sf_nutrition['carbs'] * factor
+        
+        if total_weight == 0:
+            return "Ошибка: общий вес не может быть нулевым!"
+        
+        factor_to_100g = 100.0 / total_weight
+        
+        nutrition_per_100g = {
+            'calories': round(total_calories * factor_to_100g, 2),
+            'kJoule': round(total_kJoule * factor_to_100g, 2),
+            'proteins': round(total_proteins * factor_to_100g, 2),
+            'fats': round(total_fats * factor_to_100g, 2),
+            'carbs': round(total_carbs * factor_to_100g, 2)
+        }
+        
+        total_nutrition = {
+            'calories': round(total_calories, 2),
+            'kJoule': round(total_kJoule, 2),
+            'proteins': round(total_proteins, 2),
+            'fats': round(total_fats, 2),
+            'carbs': round(total_carbs, 2)
+        }
+        
+        content = []
+        
+        recipe_name = self.recipe_name_edit.text().strip() or "Без названия"
+        content.append("=" * 27)
+        content.append(f"РЕЦЕПТ: {recipe_name}")
+        content.append("=" * 27)
+        content.append("\n")
+        
+        description = self.recipe_description_edit.toPlainText().strip()
+        if description:
+            content.append("ОПИСАНИЕ:\n")
+            content.append(description)
+            content.append("\n")
+        
+        content.append("СОСТАВ РЕЦЕПТА:\n")
+        content.append("-" * 27)
+        
+        if self.current_ingredients:
+            content.append("ИНГРЕДИЕНТЫ:\n")
+            for i, ingredient in enumerate(self.current_ingredients, 1):
+                content.append(f"{i:2d}. {ingredient['name']}: {ingredient['quantity']} г")
+            content.append("\n")
+        
+        if self.current_semi_finished:
+            content.append("ПОЛУФАБРИКАТЫ:\n")
+            for i, sf in enumerate(self.current_semi_finished, 1):
+                content.append(f"{i:2d}. {sf['name']}: {sf['quantity']} г")
+            content.append("\n")
+        
+        content.append("ПИЩЕВАЯ ЦЕННОСТЬ:\n")
+        content.append("-" * 27)
+        
+        content.append(f"На 100 г продукта:")
+        content.append(f"  Калории: {nutrition_per_100g['calories']} ккал ({nutrition_per_100g['kJoule']} кДж)")
+        content.append(f"  Белки: {nutrition_per_100g['proteins']} г")
+        content.append(f"  Жиры: {nutrition_per_100g['fats']} г") 
+        content.append(f"  Углеводы: {nutrition_per_100g['carbs']} г")
+        content.append("\n")
+        
+        content.append(f"ОБЩАЯ (вес: {total_weight} г):\n")
+        content.append(f"  Калории: {total_nutrition['calories']} ккал ({total_nutrition['kJoule']} кДж)")
+        content.append(f"  Белки: {total_nutrition['proteins']} г")
+        content.append(f"  Жиры: {total_nutrition['fats']} г")
+        content.append(f"  Углеводы: {total_nutrition['carbs']} г")
+        content.append("\n")
+        
+        content.append("РАСПРЕДЕЛЕНИЕ КАЛОРИЙ:\n")
+        content.append("-" * 27)
+        protein_calories = total_nutrition['proteins'] * 4
+        fat_calories = total_nutrition['fats'] * 9
+        carb_calories = total_nutrition['carbs'] * 4
+        total_cal_from_macros = protein_calories + fat_calories + carb_calories
+        
+        if total_cal_from_macros > 0:
+            protein_percent = (protein_calories / total_cal_from_macros) * 100
+            fat_percent = (fat_calories / total_cal_from_macros) * 100
+            carb_percent = (carb_calories / total_cal_from_macros) * 100
+            
+            content.append(f"Белки: {protein_calories:.1f} ккал ({protein_percent:.1f}%)")
+            content.append(f"Жиры: {fat_calories:.1f} ккал ({fat_percent:.1f}%)")
+            content.append(f"Углеводы: {carb_calories:.1f} ккал ({carb_percent:.1f}%)")
+        else:
+            content.append("Недостаточно данных для распределения")
+        
+        content.append("\n")
+        content.append("=" * 27)
+        content.append(f"Сгенерировано: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+        content.append("=" * 27)
+        
+        return "\n".join(content)
     
     def _on_save_recipe(self):
         """Сохранение рецепта как продукта"""
@@ -461,3 +625,110 @@ class CalculatorTab(QWidget):
             
         except Exception as e:
             QMessageBox.warning(self, "Ошибка", f"Не удалось сохранить рецепт: {str(e)}")
+    
+    def _update_quick_component_list(self):
+        """Обновляет список компонентов для быстрого добавления"""
+        component_type = self.quick_type_combo.currentData()
+        self.quick_component_combo.clear()
+        
+        if component_type == "ingredient":
+            ingredients = db.get_all_ingredients()
+            for ingredient in ingredients:
+                self.quick_component_combo.addItem(
+                    f"{ingredient[1]} (К:{ingredient[2]} Б:{ingredient[4]} Ж:{ingredient[5]} У:{ingredient[6]})",
+                    ingredient[0] 
+                )
+        
+        elif component_type == "semi_finished":
+            semi_finished = db.get_all_semi_finished()
+            for sf in semi_finished:
+                nutrition = db.calculate_semi_finished_nutrition(sf[0])
+                self.quick_component_combo.addItem(
+                    f"{sf[1]} (К:{nutrition['calories']} Б:{nutrition['proteins']} Ж:{nutrition['fats']} У:{nutrition['carbs']})",
+                    sf[0]
+                )
+        
+        elif component_type == "product":
+            products = db.get_all_products()
+            for product in products:
+                nutrition = db.calculate_product_nutrition(product[0])
+                self.quick_component_combo.addItem(
+                    f"{product[1]} (К:{nutrition['calories']} Б:{nutrition['proteins']} Ж:{nutrition['fats']} У:{nutrition['carbs']})",
+                    product[0]  
+                )
+
+    def _on_quick_add(self):
+        """Обработчик быстрого добавления компонента"""
+        if self.quick_component_combo.currentIndex() == -1:
+            QMessageBox.warning(self, "Ошибка", "Выберите компонент для добавления")
+            return
+        
+        component_type = self.quick_type_combo.currentData()
+        component_id = self.quick_component_combo.currentData()
+        component_name = self.quick_component_combo.currentText().split(' (')[0]
+        weight = self.quick_weight_spin.value()
+        
+        try:
+            if component_type == "ingredient":
+                ingredient_data = db.get_ingredient(component_id)
+                if ingredient_data:
+                    self.current_ingredients.append({
+                        'id': component_id,
+                        'name': component_name,
+                        'quantity': weight,
+                        'calories': ingredient_data['calories'],
+                        'proteins': ingredient_data['proteins'],
+                        'fats': ingredient_data['fats'],
+                        'carbs': ingredient_data['carbs']
+                    })
+                    print(f"Добавлен ингредиент: {component_name} - {weight}г")
+            
+            elif component_type == "semi_finished":
+                self.current_semi_finished.append({
+                    'id': component_id,
+                    'name': component_name,
+                    'quantity': weight
+                })
+                print(f"Добавлен полуфабрикат: {component_name} - {weight}г")
+            
+            elif component_type == "product":
+                ingredients = db.get_product_ingredients(component_id)
+                semi_finished = db.get_product_semi_finished(component_id)
+                
+                total_original_weight = sum(ing['quantity'] for ing in ingredients) + sum(sf['quantity'] for sf in semi_finished)
+                if total_original_weight > 0:
+                    scale_factor = weight / total_original_weight
+                    
+                    for ingredient in ingredients:
+                        scaled_weight = ingredient['quantity'] * scale_factor
+                        self.current_ingredients.append({
+                            'id': ingredient['id'],
+                            'name': ingredient['name'],
+                            'quantity': round(scaled_weight, 1),
+                            'calories': ingredient['calories'],
+                            'proteins': ingredient['proteins'],
+                            'fats': ingredient['fats'],
+                            'carbs': ingredient['carbs']
+                        })
+                    
+                    for sf in semi_finished:
+                        scaled_weight = sf['quantity'] * scale_factor
+                        self.current_semi_finished.append({
+                            'id': sf['id'],
+                            'name': sf['name'],
+                            'quantity': round(scaled_weight, 1)
+                        })
+                    
+                    print(f"Добавлен продукт как шаблон: {component_name} - {weight}г (масштабирован)")
+                else:
+                    QMessageBox.warning(self, "Ошибка", "Не удалось разобрать состав продукта")
+                    return
+            
+            self._update_composition_display()
+            self.quick_weight_spin.setValue(100)
+            
+            QMessageBox.information(self, "Успех", f"Компонент '{component_name}' добавлен в рецепт!\nВес: {weight}г")
+            
+        except Exception as e:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось добавить компонент: {str(e)}")
+
