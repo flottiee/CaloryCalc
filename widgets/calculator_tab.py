@@ -473,8 +473,7 @@ class CalculatorTab(QWidget):
             print("fuck")
 
         QMessageBox.information(self, "Экспорт", 
-            "этикетка экспортированна в выбранную папку\n"
-            "Выеби меня")
+            "этикетка экспортированна в выбранную папку")
 
     def _generate_export_content(self):
         """Генерирует форматированное содержимое для экспорта"""
